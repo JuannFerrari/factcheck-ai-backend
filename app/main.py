@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.rate_limiter import limiter
 from app.api.routes import fact_check
+from app.api.routes.health import root as health_root
 
 # Setup logging
 setup_logging()
@@ -81,11 +82,8 @@ async def add_rate_limit_headers(request: Request, call_next):
     return response
 
 
-# Only include the fact_check router
 app.include_router(fact_check.router, prefix="/api/v1", tags=["fact-checking"])
-
-# Do NOT call add_fact_check_routes(app)
-# Do NOT include health.router
+app.add_api_route("/", health_root, methods=["GET"])
 
 
 @app.exception_handler(Exception)

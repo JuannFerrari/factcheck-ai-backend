@@ -19,6 +19,16 @@ def client():
     return TestClient(app)
 
 
+def test_root_health_check(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+    assert "version" in data
+    assert "environment" in data
+    assert "timestamp" in data
+
+
 class TestFactCheckEndpoint:
     """Test the fact-check API endpoint."""
 
