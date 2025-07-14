@@ -44,7 +44,6 @@ OUTPUT FORMAT:
 - Verdict: [True/False/Unclear]
 - Confidence: [0-100]
 - Reasoning: [Detailed explanation, including both sides if relevant]
-- Sources: [List of sources used]
 
 If sources are insufficient or contradictory, mark as UNCLEAR with low confidence. [/INST]
 """)
