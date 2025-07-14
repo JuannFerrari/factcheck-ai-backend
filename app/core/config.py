@@ -21,9 +21,6 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     environment: str = "development"
 
-    # API Configuration
-    max_requests_per_minute: int = 60
-
     # Security & Production Configuration
     cors_origins: List[str] = ["http://localhost:3000"]
     api_key_header: str = "X-API-Key"

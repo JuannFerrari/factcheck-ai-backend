@@ -34,19 +34,20 @@ INSTRUCTIONS:
 2. Prioritize information from reputable, authoritative sources (e.g., academic publications, government websites, major news organizations).
 3. Disregard or downweight information from less reliable sources such as Reddit, forums, social media, or user-generated content, unless no other sources are available.
 4. Determine if the claim is TRUE, FALSE, or UNCLEAR.
-5. Provide a confidence score (0-100).
-6. Write a clear, detailed explanation of your reasoning, citing the most credible sources.
-7. If only less reliable sources are available, mention this in your explanation.
+5. If the sources disagree, or if there is controversy or ambiguity, explain both sides and cite sources for each.
+6. If the answer depends on definitions or context, clearly state this and explain the different interpretations.
+7. Provide a confidence score (0-100).
+8. Write a clear, detailed explanation of your reasoning, citing the most credible sources. Include direct quotes or evidence where possible.
+9. If only less reliable sources are available, mention this in your explanation.
 
 OUTPUT FORMAT:
 - Verdict: [True/False/Unclear]
 - Confidence: [0-100]
-- Reasoning: [Detailed explanation]
+- Reasoning: [Detailed explanation, including both sides if relevant]
+- Sources: [List of sources used]
 
-If sources are insufficient or contradictory, mark as UNCLEAR with low confidence. [/INST]""")
-
-
-
+If sources are insufficient or contradictory, mark as UNCLEAR with low confidence. [/INST]
+""")
 
 
 async def fact_check_chain_logic(input_data: Dict[str, Any]) -> Dict[str, Any]:
