@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+venv/
+.venv/
+
+# Environment and secrets
+.env
+.env.local
+.env.production
+secrets.json
+config.json
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml 
