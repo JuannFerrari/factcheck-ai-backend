@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
+
 @router.get("/")
 async def root():
     """Basic health check endpoint"""
@@ -11,5 +12,5 @@ async def root():
         "message": f"{settings.app_name} is running ✅",
         "version": settings.app_version,
         "environment": settings.environment,
-        "timestamp": datetime.now(UTC).isoformat()
+        "timestamp": datetime.now(UTC).isoformat(),
     }

@@ -1,7 +1,6 @@
-import os
 from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import Field, ConfigDict
+from pydantic import ConfigDict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,11 +29,12 @@ class Settings(BaseSettings):
     # Logging Configuration
     log_level: str = "INFO"
 
-    model_config = ConfigDict(
-        env_file=".env",
-        case_sensitive=False,
-        extra="ignore"
-    )
+    # Content Moderation Configuration
+    enable_content_moderation: bool = True
+    content_moderation_strictness: str = "medium"  # low, medium, high
+    skip_web_search_for_inappropriate: bool = True
+
+    model_config = ConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
 
 settings = Settings()

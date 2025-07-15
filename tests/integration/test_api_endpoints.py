@@ -1,436 +1,198 @@
-"""
-Integration tests for API endpoints using FastAPI TestClient with mocks.
-"""
 import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import app
-from tests.conftest import TestData, AssertionHelpers
+from tests.conftest import AssertionHelpers, mock_fact_check, post_factcheck
 from app.core.config import settings
+from app.services.content_moderation import ModerationDecision, ModerationResult
 
 
 @pytest.fixture
 def client():
-    """Create a test client."""
     from app.core.rate_limiter import limiter
-    # Reset the rate limiter before each test to avoid interference
+
     limiter.reset()
     return TestClient(app)
 
 
+# --- Root health check ---
 def test_root_health_check(client):
     response = client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert "message" in data
-    assert "version" in data
-    assert "environment" in data
-    assert "timestamp" in data
+    for key in ("message", "version", "environment", "timestamp"):
+        assert key in data
 
 
-class TestFactCheckEndpoint:
-    """Test the fact-check API endpoint."""
+# --- API key handling ---
+@pytest.mark.parametrize(
+    "headers,expected_error",
+    [
+        ({}, "missing"),
+        ({settings.api_key_header: "wrong"}, "invalid"),
+    ],
+)
+def test_fact_check_api_key_errors(client, headers, expected_error):
+    response = client.post("/api/v1/factcheck", json={"claim": "test"}, headers=headers)
+    assert response.status_code == 401
+    assert expected_error in response.json()["error"].lower()
 
-    @pytest.mark.integration
-    def test_fact_check_missing_api_key(self, client: TestClient):
-        """Test request without API key header is rejected."""
-        payload = {"claim": "The Earth is round."}
-        response = client.post("/api/v1/factcheck", json=payload)
-        assert response.status_code == 401
+
+# --- Valid claim flow ---
+@pytest.mark.integration
+@patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
+@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.client.chat.completions.create")
+def test_fact_check_successful(mock_llm, mock_search, mock_moderation, client):
+    # Mock moderation to allow the claim
+    mock_moderation.return_value = ModerationResult(
+        decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
+    )
+
+    mock_fact_check(
+        mock_llm,
+        mock_search,
+        sources=2,
+        verdict="FALSE",
+        confidence=95,
+        reasoning="This claim is false.",
+    )
+    response = post_factcheck(client, "The Earth is flat.")
+    data = response.json()
+
+    # Validate response structure
+    AssertionHelpers.assert_valid_fact_check_response(data, expect_metadata=False)
+    assert data["verdict"] == "False"
+    assert data["confidence"] == 95
+    assert len(data["sources"]) == 2
+    assert "tldr" in data  # Ensure TL;DR field is present
+
+
+# --- Multiple claims with different verdicts ---
+@pytest.mark.integration
+@patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
+@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.client.chat.completions.create")
+@pytest.mark.parametrize(
+    "claim,expected_verdict",
+    [
+        ("The Earth is round.", "True"),
+        ("Water boils at 100°C.", "True"),
+    ],
+)
+def test_fact_check_multiple_verdicts(
+    mock_llm, mock_search, mock_moderation, client, claim, expected_verdict
+):
+    # Mock moderation to allow the claim
+    mock_moderation.return_value = ModerationResult(
+        decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
+    )
+
+    mock_fact_check(
+        mock_llm,
+        mock_search,
+        sources=1,
+        verdict="TRUE",
+        confidence=85,
+        reasoning="This claim is true.",
+    )
+    response = post_factcheck(client, claim)
+    data = response.json()
+    assert data["claim"] == claim
+    assert data["verdict"] == expected_verdict
+    assert data["confidence"] == 85
+
+
+# --- Invalid claims (empty, whitespace, too long) ---
+@pytest.mark.parametrize("claim", ["", "   ", "A" * 1001])
+def test_invalid_claims_return_422(client, claim):
+    headers = {settings.api_key_header: settings.api_key}
+    response = client.post("/api/v1/factcheck", json={"claim": claim}, headers=headers)
+    assert response.status_code == 422
+
+
+# --- Rate limiting headers ---
+@pytest.mark.integration
+@patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
+@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.client.chat.completions.create")
+def test_rate_limit_headers_present(mock_llm, mock_search, mock_moderation, client):
+    # Mock moderation to allow the claim
+    mock_moderation.return_value = ModerationResult(
+        decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
+    )
+
+    mock_fact_check(mock_llm, mock_search)
+    response = post_factcheck(client, "Test claim")
+    AssertionHelpers.assert_rate_limit_headers(response)
+
+
+# --- Special characters and long claims ---
+@pytest.mark.integration
+@patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
+@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.client.chat.completions.create")
+def test_special_characters_and_long_claims(
+    mock_llm, mock_search, mock_moderation, client
+):
+    # Mock moderation to allow the claim
+    mock_moderation.return_value = ModerationResult(
+        decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
+    )
+
+    mock_fact_check(mock_llm, mock_search)
+    special_claims = [
+        "A" * 1000,  # max allowed length
+        "The Earth is round! 🌍 And water boils at 100°C.",
+    ]
+    for claim in special_claims:
+        response = post_factcheck(client, claim)
         data = response.json()
-        assert "error" in data, "Response should have 'error' field"
-        assert "invalid" in data["error"].lower() or "missing" in data["error"].lower()
-
-    @pytest.mark.integration
-    def test_fact_check_invalid_api_key(self, client: TestClient):
-        """Test request with invalid API key is rejected."""
-        payload = {"claim": "The Earth is round."}
-        headers = {settings.api_key_header: "wrongkey"}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 401
-        data = response.json()
-        assert "error" in data, "Response should have 'error' field"
-        assert "invalid" in data["error"].lower() or "missing" in data["error"].lower()
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_fact_check_valid_api_key(self, mock_llm, mock_search, client: TestClient):
-        """Test request with valid API key is accepted."""
-        mock_search.return_value = TestData.create_mock_sources(1)
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-        payload = {"claim": "The Earth is round."}
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert "verdict" in data
-        assert "confidence" in data
-        assert "reasoning" in data
-        assert "sources" in data
-        assert "claim" in data
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_fact_check_successful_request(self, mock_llm, mock_search, client: TestClient):
-        """Test successful fact-check request."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(2)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: FALSE
-        Confidence: 95
-        Reasoning: This claim is false based on evidence.
-        """
-        mock_llm.return_value = mock_response
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": "The Earth is flat."}
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-
-        assert response.status_code == 200
-        data = response.json()
-        # The response structure is different for the direct endpoint vs LangServe
-        assert "verdict" in data, "Response missing 'verdict' key"
-        assert "confidence" in data, "Response missing 'confidence' key"
-        assert "reasoning" in data, "Response missing 'reasoning' key"
-        assert "sources" in data, "Response missing 'sources' key"
-        assert "claim" in data, "Response missing 'claim' key"
-
-        # Verify specific values
-        assert data["verdict"] == "False"
-        assert data["confidence"] == 95
-        assert len(data["sources"]) == 2
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_fact_check_multiple_claims(self, mock_llm, mock_search, client: TestClient):
-        """Test multiple fact-check requests."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        claims = ["The Earth is round.", "Water boils at 100°C."]
-
-        for claim in claims:
-            # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-            payload = {"claim": claim}
-            headers = {settings.api_key_header: settings.api_key}
-            response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-
-            assert response.status_code == 200
-            data = response.json()
-            # The response structure is different for the direct endpoint vs LangServe
-            assert "verdict" in data, "Response missing 'verdict' key"
-            assert "confidence" in data, "Response missing 'confidence' key"
-            assert "reasoning" in data, "Response missing 'reasoning' key"
-            assert "sources" in data, "Response missing 'sources' key"
-            assert "claim" in data, "Response missing 'claim' key"
-
-            assert data["claim"] == claim
-            assert data["verdict"] == "True"
-            assert data["confidence"] == 85
-
-    @pytest.mark.integration
-    def test_fact_check_missing_input(self, client: TestClient):
-        """Test fact-check request with missing input."""
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json={}, headers=headers)
-        assert response.status_code == 422
-
-    @pytest.mark.integration
-    def test_fact_check_missing_claim(self, client: TestClient):
-        """Test fact-check request with missing claim."""
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json={"input": {}}, headers=headers)
-        assert response.status_code == 422
-
-    @pytest.mark.integration
-    def test_fact_check_empty_claim(self, client: TestClient):
-        """Test fact-check request with empty claim."""
-        payload = TestData.create_fact_check_payload("")
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 422
-
-    @pytest.mark.integration
-    def test_fact_check_whitespace_claim(self, client: TestClient):
-        """Test fact-check request with whitespace-only claim."""
-        payload = TestData.create_fact_check_payload("   ")
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 422
-
-    @pytest.mark.integration
-    def test_fact_check_claim_too_long(self, client: TestClient):
-        """Test fact-check request with claim that's too long."""
-        long_claim = "A" * 1001  # Exceeds 1000 character limit
-        payload = TestData.create_fact_check_payload(long_claim)
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 422
+        AssertionHelpers.assert_valid_fact_check_response(data, expect_metadata=False)
+        assert data["claim"] == claim
 
 
-class TestRateLimiting:
-    """Test rate limiting functionality."""
+# --- CORS headers ---
+@pytest.mark.integration
+@patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
+@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.client.chat.completions.create")
+def test_cors_headers(mock_llm, mock_search, mock_moderation, client):
+    # Mock moderation to allow the claim
+    mock_moderation.return_value = ModerationResult(
+        decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
+    )
 
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_rate_limit_exceeded(self, mock_llm, mock_search, client: TestClient):
-        """Test that rate limiting works when limit is exceeded."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        # Make requests up to the rate limit
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": "Test claim"}
-        headers = {settings.api_key_header: settings.api_key}
-
-        # First request should succeed
-        response1 = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response1.status_code == 200
-        AssertionHelpers.assert_rate_limit_headers(response1)
-
-        # Second request should also succeed (rate limit is higher in tests)
-        response2 = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response2.status_code == 200
-        AssertionHelpers.assert_rate_limit_headers(response2)
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_rate_limit_exceeded_with_custom_error_message(self, mock_llm, mock_search, client: TestClient):
-        """Test that rate limiting returns the correct status code and custom error message."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": "Test claim"}
-        headers = {settings.api_key_header: settings.api_key}
-
-        # Make requests rapidly to trigger rate limiting
-        # The limit is "10/minute;2/second" so we need to exceed 2/second
-        responses = []
-        for i in range(10):  # Make 10 rapid requests to ensure we hit the limit
-            response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-            responses.append(response)
-            print(f"Request {i+1}: Status {response.status_code}")
-
-        # Check that we got rate limited (429 status)
-        rate_limited_responses = [r for r in responses if r.status_code == 429]
-        print(f"Total responses: {len(responses)}")
-        print(f"Rate limited responses: {len(rate_limited_responses)}")
-        print(f"Status codes: {[r.status_code for r in responses]}")
-        
-        assert len(rate_limited_responses) > 0, "Expected at least one rate-limited response"
-
-        # Check the custom error message for rate-limited responses
-        for rate_limited_response in rate_limited_responses:
-            error_data = rate_limited_response.json()
-            assert "error" in error_data, "Rate limit response should have 'error' field"
-            assert "Too many requests" in error_data["error"], "Rate limit response should contain 'Too many requests'"
-            assert "Please wait a few seconds" in error_data["error"], "Rate limit response should contain wait message"
-            assert "contact the site owner" in error_data["error"], "Rate limit response should mention contacting site owner"
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_rate_limit_steady_state(self, mock_llm, mock_search, client: TestClient):
-        """Test that rate limiting allows requests within the steady state limit."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": "Test claim"}
-        headers = {settings.api_key_header: settings.api_key}
-
-        # Make 2 requests (within the 2/second limit)
-        response1 = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        response2 = client.post("/api/v1/factcheck", json=payload, headers=headers)
-
-        # Both should succeed
-        assert response1.status_code == 200, "First request should succeed"
-        assert response2.status_code == 200, "Second request should succeed within rate limit"
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_rate_limit_headers_present(self, mock_llm, mock_search, client: TestClient):
-        """Test that rate limit headers are present in responses."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": "Test claim"}
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        AssertionHelpers.assert_rate_limit_headers(response)
+    mock_fact_check(mock_llm, mock_search)
+    response = post_factcheck(client, "Test claim")
+    for h in (
+        "access-control-allow-origin",
+        "access-control-allow-methods",
+        "access-control-allow-headers",
+    ):
+        assert h in response.headers
 
 
-class TestErrorHandling:
-    """Test error handling scenarios."""
+# --- TL;DR field validation ---
+@pytest.mark.integration
+@patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
+@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.client.chat.completions.create")
+def test_tldr_field_present(mock_llm, mock_search, mock_moderation, client):
+    # Mock moderation to allow the claim
+    mock_moderation.return_value = ModerationResult(
+        decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
+    )
 
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_large_claim_handling(self, mock_llm, mock_search, client: TestClient):
-        """Test handling of very large claims."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        large_claim = "A" * 1000  # 1000 character claim
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": large_claim}
-        headers = {settings.api_key_header: settings.api_key}
-
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 200
-        data = response.json()
-        # The response structure is different for the direct endpoint vs LangServe
-        assert "verdict" in data, "Response missing 'verdict' key"
-        assert "confidence" in data, "Response missing 'confidence' key"
-        assert "reasoning" in data, "Response missing 'reasoning' key"
-        assert "sources" in data, "Response missing 'sources' key"
-        assert "claim" in data, "Response missing 'claim' key"
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_special_characters_in_claim(self, mock_llm, mock_search, client: TestClient):
-        """Test handling of claims with special characters."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        special_claim = "The Earth is round! 🌍 And water boils at 100°C."
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": special_claim}
-        headers = {settings.api_key_header: settings.api_key}
-
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert response.status_code == 200
-        data = response.json()
-        # The response structure is different for the direct endpoint vs LangServe
-        assert "verdict" in data, "Response missing 'verdict' key"
-        assert "confidence" in data, "Response missing 'confidence' key"
-        assert "reasoning" in data, "Response missing 'reasoning' key"
-        assert "sources" in data, "Response missing 'sources' key"
-        assert "claim" in data, "Response missing 'claim' key"
-
-        assert data["claim"] == special_claim
-
-class TestCORS:
-    """Test CORS functionality."""
-
-    @pytest.mark.integration
-    @patch('app.services.fact_checking.web_search_service.search_claim')
-    @patch('app.services.fact_checking.client.chat.completions.create')
-    def test_cors_headers_present(self, mock_llm, mock_search, client: TestClient):
-        """Test that CORS headers are present in responses."""
-        # Mock web search with proper Source objects
-        mock_search.return_value = TestData.create_mock_sources(1)
-
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """
-        Verdict: TRUE
-        Confidence: 85
-        Reasoning: This claim is true.
-        """
-        mock_llm.return_value = mock_response
-
-        # For the /api/v1/factcheck endpoint, we need a direct claim, not wrapped in input
-        payload = {"claim": "Test claim"}
-        headers = {settings.api_key_header: settings.api_key}
-        response = client.post("/api/v1/factcheck", json=payload, headers=headers)
-        assert "access-control-allow-origin" in response.headers
-        assert "access-control-allow-methods" in response.headers
-        assert "access-control-allow-headers" in response.headers
-
-
+    mock_fact_check(
+        mock_llm,
+        mock_search,
+        sources=1,
+        verdict="TRUE",
+        confidence=90,
+        reasoning="Test reasoning.",
+    )
+    response = post_factcheck(client, "Test claim")
+    data = response.json()
+    assert "tldr" in data
+    assert isinstance(data["tldr"], str)

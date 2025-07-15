@@ -1,6 +1,5 @@
 import httpx
-import asyncio
-from typing import List, Dict, Any
+from typing import List
 from app.domain.models import Source
 from app.core.config import settings
 
@@ -20,13 +19,10 @@ class WebSearchService:
                     self.base_url,
                     headers={
                         "X-API-KEY": self.api_key,
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
                     },
-                    json={
-                        "q": claim,
-                        "num": num_results
-                    },
-                    timeout=30.0
+                    json={"q": claim, "num": num_results},
+                    timeout=30.0,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -37,7 +33,7 @@ class WebSearchService:
                         source = Source(
                             title=result.get("title", "No title"),
                             url=result.get("link", ""),
-                            snippet=result.get("snippet", "")
+                            snippet=result.get("snippet", ""),
                         )
                         sources.append(source)
 

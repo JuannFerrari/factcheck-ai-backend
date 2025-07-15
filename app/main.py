@@ -1,6 +1,5 @@
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,11 +30,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="AI-powered fact-checking API using RAG with web search and Hugging Face Inference Providers",
-    docs_url=None,         # Disable Swagger UI
-    redoc_url=None,        # Disable ReDoc
-    openapi_url=None,      # Disable OpenAPI schema
-    lifespan=lifespan
+    description=(
+        "AI-powered fact-checking API using RAG with web search and "
+        "Hugging Face Inference Providers"
+    ),
+    docs_url=None,  # Disable Swagger UI
+    redoc_url=None,  # Disable ReDoc
+    openapi_url=None,  # Disable OpenAPI schema
+    lifespan=lifespan,
 )
 
 # Add rate limiter to app state
@@ -59,13 +61,13 @@ async def add_rate_limit_headers(request: Request, call_next):
 
     # Add rate limit headers if not already present
     if "X-RateLimit-Limit" not in response.headers:
-        response.headers["X-RateLimit-Limit"] = str(
-            settings.rate_limit_per_minute)
+        response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_per_minute)
 
     # Add remaining and reset headers (simplified for testing)
     if "X-RateLimit-Remaining" not in response.headers:
         response.headers["X-RateLimit-Remaining"] = str(
-            settings.rate_limit_per_minute - 1)
+            settings.rate_limit_per_minute - 1
+        )
 
     if "X-RateLimit-Reset" not in response.headers:
         # Set reset to 60 seconds from now
@@ -89,35 +91,40 @@ app.add_api_route("/", health_root, methods=["GET"])
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""
-    logger.error("Unhandled exception",
-                 error=str(exc),
-                 path=request.url.path,
-                 method=request.method)
+    logger.error(
+        "Unhandled exception",
+        error=str(exc),
+        path=request.url.path,
+        method=request.method,
+    )
 
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal server error",
-            "detail": str(exc) if settings.environment == "development" else "An unexpected error occurred"
-        }
+            "detail": (
+                str(exc)
+                if settings.environment == "development"
+                else "An unexpected error occurred"
+            ),
+        },
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """HTTP exception handler"""
-    logger.warning("HTTP exception",
-                   status_code=exc.status_code,
-                   detail=exc.detail,
-                   path=request.url.path,
-                   method=request.method)
+    logger.warning(
+        "HTTP exception",
+        status_code=exc.status_code,
+        detail=exc.detail,
+        path=request.url.path,
+        method=request.method,
+    )
 
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": exc.detail,
-            "status_code": exc.status_code
-        }
+        content={"error": exc.detail, "status_code": exc.status_code},
     )
 
 
@@ -126,6 +133,9 @@ async def custom_rate_limit_handler(request, exc):
     return JSONResponse(
         status_code=429,
         content={
-            "error": "Too many requests. Please wait a few seconds and try again. If you need higher limits, contact the site owner."
-        }
+            "error": (
+                "Too many requests. Please wait a few seconds and try again. "
+                "If you need higher limits, contact the site owner."
+            )
+        },
     )
