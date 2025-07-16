@@ -27,9 +27,9 @@ class HybridSearchService:
         used_vector_cache = False
 
         try:
-            # Step 1: Check for exact match in vector database
+            # Step 1: Check for exact match in vector database (only if vector search is enabled)
             exact_match = None
-            if use_vector_cache:
+            if use_vector_cache and settings.enable_vector_search:
                 exact_match = await vector_database_service.get_exact_match(
                     session, claim
                 )
@@ -157,8 +157,9 @@ class HybridSearchService:
     async def get_search_statistics(self, session: AsyncSession) -> dict:
         """Get statistics about search performance"""
         try:
-            # Get vector database statistics
-            vector_stats = await vector_database_service.get_statistics(session)
+            vector_stats = {}
+            if settings.enable_vector_search:
+                vector_stats = await vector_database_service.get_statistics(session)
 
             return {
                 "vector_database": vector_stats,

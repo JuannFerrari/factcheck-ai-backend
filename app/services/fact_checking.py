@@ -323,7 +323,10 @@ async def fact_check_chain_logic(input_data: Dict[str, Any]) -> Dict[str, Any]:
         async with AsyncSessionLocal() as session:
             # Perform hybrid search (vector + web)
             hybrid_result = await hybrid_search_service.search_claim(
-                session, claim, num_web_results=5, use_vector_cache=True
+                session,
+                claim,
+                num_web_results=5,
+                use_vector_cache=settings.enable_vector_search,
             )
 
             sources = hybrid_result.combined_sources

@@ -25,6 +25,15 @@ def verify_api_key(request: Request):
 @limiter.limit("30/minute;5/second")
 async def get_statistics(request: Request, _=Depends(verify_api_key)):
     """Get vector database and search statistics"""
+    if not settings.enable_vector_search:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Vector search is disabled",
+                "detail": "Vector database features are not available in this deployment.",
+            },
+        )
+
     try:
         async with AsyncSessionLocal() as session:
             # Get vector database statistics
@@ -58,6 +67,15 @@ async def get_recent_fact_checks(
     request: Request, limit: int = 10, _=Depends(verify_api_key)
 ):
     """Get recent fact-check records"""
+    if not settings.enable_vector_search:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Vector search is disabled",
+                "detail": "Vector database features are not available in this deployment.",
+            },
+        )
+
     try:
         if limit > 50:
             limit = 50  # Cap at 50 records
@@ -93,6 +111,15 @@ async def search_similar_claims(
     _=Depends(verify_api_key),
 ):
     """Search for similar claims in the vector database"""
+    if not settings.enable_vector_search:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Vector search is disabled",
+                "detail": "Vector database features are not available in this deployment.",
+            },
+        )
+
     try:
         if not claim.strip():
             raise HTTPException(
@@ -134,6 +161,15 @@ async def get_fact_check_record(
     request: Request, record_id: int, _=Depends(verify_api_key)
 ):
     """Get a specific fact-check record by ID"""
+    if not settings.enable_vector_search:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Vector search is disabled",
+                "detail": "Vector database features are not available in this deployment.",
+            },
+        )
+
     try:
         async with AsyncSessionLocal() as session:
             record = await vector_database_service.get_fact_check_by_id(
