@@ -19,7 +19,7 @@ def client():
 # --- Response structure validation ---
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_response_structure_validation(mock_llm, mock_search, mock_moderation, client):
     """Test that API responses have the correct structure."""
@@ -49,7 +49,7 @@ def test_response_structure_validation(mock_llm, mock_search, mock_moderation, c
 # --- Verdict logic testing ---
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 @pytest.mark.parametrize(
     "mock_verdict,expected_verdict",
@@ -87,7 +87,7 @@ def test_verdict_mapping(
 # --- Moderation rejection testing ---
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_moderation_rejection(mock_llm, mock_search, mock_moderation, client):
     """Test that inappropriate content is rejected"""
@@ -109,7 +109,7 @@ def test_moderation_rejection(mock_llm, mock_search, mock_moderation, client):
 # --- Error handling testing ---
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_web_search_failure_handling(mock_llm, mock_search, mock_moderation, client):
     """Test graceful handling of web search failures."""
@@ -130,7 +130,7 @@ def test_web_search_failure_handling(mock_llm, mock_search, mock_moderation, cli
 
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_llm_failure_handling(mock_llm, mock_search, mock_moderation, client):
     """Test graceful handling of LLM failures."""
@@ -151,7 +151,7 @@ def test_llm_failure_handling(mock_llm, mock_search, mock_moderation, client):
 # --- Rate limiting structure testing ---
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_rate_limit_headers_present(mock_llm, mock_search, mock_moderation, client):
     """Test that rate limit headers are present in responses."""
@@ -168,7 +168,7 @@ def test_rate_limit_headers_present(mock_llm, mock_search, mock_moderation, clie
 # --- TL;DR extraction testing ---
 @pytest.mark.e2e
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_tldr_extraction(mock_llm, mock_search, mock_moderation, client):
     """Test that TL;DR is properly extracted and included in response."""

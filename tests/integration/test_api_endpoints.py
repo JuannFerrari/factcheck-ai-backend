@@ -41,7 +41,7 @@ def test_fact_check_api_key_errors(client, headers, expected_error):
 # --- Valid claim flow ---
 @pytest.mark.integration
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_fact_check_successful(mock_llm, mock_search, mock_moderation, client):
     # Mock moderation to allow the claim
@@ -71,7 +71,7 @@ def test_fact_check_successful(mock_llm, mock_search, mock_moderation, client):
 # --- Multiple claims with different verdicts ---
 @pytest.mark.integration
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 @pytest.mark.parametrize(
     "claim,expected_verdict",
@@ -114,7 +114,7 @@ def test_invalid_claims_return_422(client, claim):
 # --- Rate limiting headers ---
 @pytest.mark.integration
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_rate_limit_headers_present(mock_llm, mock_search, mock_moderation, client):
     # Mock moderation to allow the claim
@@ -130,7 +130,7 @@ def test_rate_limit_headers_present(mock_llm, mock_search, mock_moderation, clie
 # --- Special characters and long claims ---
 @pytest.mark.integration
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_special_characters_and_long_claims(
     mock_llm, mock_search, mock_moderation, client
@@ -155,7 +155,7 @@ def test_special_characters_and_long_claims(
 # --- CORS headers ---
 @pytest.mark.integration
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_cors_headers(mock_llm, mock_search, mock_moderation, client):
     # Mock moderation to allow the claim
@@ -176,7 +176,7 @@ def test_cors_headers(mock_llm, mock_search, mock_moderation, client):
 # --- TL;DR field validation ---
 @pytest.mark.integration
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 def test_tldr_field_present(mock_llm, mock_search, mock_moderation, client):
     # Mock moderation to allow the claim

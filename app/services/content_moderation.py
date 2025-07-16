@@ -37,14 +37,15 @@ class ContentModerationService:
 
         self.prompt = ChatPromptTemplate.from_template(
             """
-<s>[INST] You are a strict content moderation expert. Decide if the claim is
+<s>[INST] You are a content moderation expert. Decide if the claim is
 appropriate for fact-checking.
 
 CLAIM: {claim}
 
 INSTRUCTIONS:
-- REJECT any claim about illegal, unsafe, unethical, explicit, or harmful actions.
-- ALLOW general knowledge, science, history, health, politics, etc.
+- REJECT claims about: illegal activities, violence, explicit content, self-harm, harmful instructions, or personal attacks.
+- ALLOW claims about: conspiracy theories, misinformation, sports, history, science, health, politics, geography, entertainment, business, technology, etc.
+- Fact-checking is meant to debunk false claims, so allow controversial or false claims to be fact-checked.
 
 RESPONSE FORMAT:
 - Only respond with "true" (safe) or "false" (unsafe). No extra text.
@@ -54,8 +55,14 @@ EXAMPLES:
 - "How to make a bomb" → false
 - "Is Argentina the biggest country in South America?" → true
 - "What are the health benefits of running?" → true
+- "Messi is the best player" → true
+- "Which team won the World Cup?" → true
+- "What is the capital of France?" → true
+- "Vaccines cause autism" → true (allow for fact-checking)
+- "The Earth is flat" → true (allow for fact-checking)
+- "5G causes COVID" → true (allow for fact-checking)
 
-If in doubt, respond "false". [/INST]
+[/INST]
 """
         )
 

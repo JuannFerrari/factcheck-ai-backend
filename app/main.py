@@ -10,8 +10,10 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.rate_limiter import limiter
+from app.core.database import init_database, close_database
 from app.api.routes import fact_check
 from app.api.routes.health import root as health_root
+from app.api.routes import vector_db
 
 # Setup logging
 setup_logging()
@@ -22,7 +24,24 @@ logger = get_logger()
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info("Starting application")
+    
+    # Initialize database
+    try:
+        await init_database()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        # Continue without database if initialization fails
+    
     yield
+    
+    # Close database connections
+    try:
+        await close_database()
+        logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error closing database connections: {e}")
+    
     logger.info("Shutting down application")
 
 
@@ -85,6 +104,7 @@ async def add_rate_limit_headers(request: Request, call_next):
 
 
 app.include_router(fact_check.router, prefix="/api/v1", tags=["fact-checking"])
+app.include_router(vector_db.router, prefix="/api/v1/vector", tags=["vector-database"])
 app.add_api_route("/", health_root, methods=["GET"])
 
 

@@ -35,7 +35,7 @@ def assert_fact_check_result(result, verdict=None, confidence=None, sources=None
     [("True", 90), ("False", 95), ("Unclear", 45), ("Disputed", 85)],
 )
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 async def test_various_verdicts(
     mock_llm, mock_search, mock_moderation, verdict, confidence
@@ -68,7 +68,7 @@ async def test_various_verdicts(
     ],
 )
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 async def test_tldr_variations(
     mock_llm, mock_search, mock_moderation, tldr_input, expected_tldr
@@ -93,7 +93,7 @@ async def test_tldr_variations(
 
 @pytest.mark.asyncio
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 async def test_no_sources(mock_llm, mock_search, mock_moderation):
     # Mock moderation to allow the claim
@@ -110,7 +110,7 @@ async def test_no_sources(mock_llm, mock_search, mock_moderation):
 @pytest.mark.asyncio
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
 @patch(
-    "app.services.fact_checking.web_search_service.search_claim",
+    "app.services.fact_checking.hybrid_search_service.search_claim",
     side_effect=Exception("Search fail"),
 )
 async def test_web_search_error(mock_search, mock_moderation):
@@ -126,7 +126,7 @@ async def test_web_search_error(mock_search, mock_moderation):
 
 @pytest.mark.asyncio
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
-@patch("app.services.fact_checking.web_search_service.search_claim")
+@patch("app.services.fact_checking.hybrid_search_service.search_claim")
 @patch("app.services.fact_checking.client.chat.completions.create")
 async def test_moderation_rejection(mock_llm, mock_search, mock_moderation):
     # Simulate moderation rejection

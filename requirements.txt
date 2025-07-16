@@ -16,3 +16,12 @@ pytest
 pytest-asyncio
 pytest-cov
 psutil
+# Vector database dependencies
+pgvector
+asyncpg
+sqlalchemy[asyncio]
+langchain-community
+sentence-transformers
+numpy
+# Retry and resilience
+tenacity
