@@ -164,13 +164,28 @@ def test_cors_headers(mock_llm, mock_search, mock_moderation, client):
     )
 
     mock_fact_check(mock_llm, mock_search)
-    response = post_factcheck(client, "Test claim")
-    for h in (
-        "access-control-allow-origin",
-        "access-control-allow-methods",
-        "access-control-allow-headers",
-    ):
-        assert h in response.headers
+    origin = "http://localhost:3000"
+
+    options_headers = {
+        "Origin": origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    }
+    options_response = client.options("/api/v1/factcheck", headers=options_headers)
+    assert options_response.status_code == 200
+    assert "access-control-allow-origin" in options_response.headers
+    assert "access-control-allow-methods" in options_response.headers
+    assert "access-control-allow-headers" in options_response.headers
+
+    post_headers = {
+        settings.api_key_header: settings.api_key,
+        "Origin": origin,
+    }
+    post_response = client.post(
+        "/api/v1/factcheck", json={"claim": "Test claim"}, headers=post_headers
+    )
+    assert post_response.status_code == 200
+    assert "access-control-allow-origin" in post_response.headers
 
 
 # --- TL;DR field validation ---

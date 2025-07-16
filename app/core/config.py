@@ -1,7 +1,8 @@
 from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -39,6 +40,19 @@ class Settings(BaseSettings):
     api_key_header: str = "X-API-Key"
     api_key: Optional[str] = None
     rate_limit_per_minute: int = Field(default=60, ge=1, le=1000)
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from various formats"""
+        if isinstance(v, str):
+            # Try to parse as JSON first
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # If not JSON, treat as comma-separated string
+                return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     # Logging Configuration
     log_level: str = Field(

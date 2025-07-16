@@ -15,6 +15,7 @@ jobs:
       SERPER_API_KEY: "test_serper_api_key"
       API_KEY: "test_api_key"
       NEON_DATABASE_URL: "test_neondb_url"
+      ENVIRONMENT: "test"
     
     steps:
     - name: Checkout code

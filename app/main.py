@@ -64,6 +64,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add CORS middleware with configurable origins
+logger.info(f"Configuring CORS with origins: {settings.cors_origins}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -91,14 +92,6 @@ async def add_rate_limit_headers(request: Request, call_next):
     if "X-RateLimit-Reset" not in response.headers:
         # Set reset to 60 seconds from now
         response.headers["X-RateLimit-Reset"] = str(int(time.time()) + 60)
-
-    # Add CORS headers if not already present (for non-CORS middleware responses)
-    if "access-control-allow-origin" not in response.headers:
-        response.headers["access-control-allow-origin"] = "*"
-    if "access-control-allow-methods" not in response.headers:
-        response.headers["access-control-allow-methods"] = "*"
-    if "access-control-allow-headers" not in response.headers:
-        response.headers["access-control-allow-headers"] = "*"
 
     return response
 
