@@ -6,7 +6,6 @@ from sqlalchemy import select, text, func
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from app.core.database import FactCheckRecordDB
 from app.domain.models import FactCheckRecord, VectorSearchResult, Source
-from app.services.embedding_service import embedding_service
 from app.core.config import settings
 from app.core.logging import get_logger
 from tenacity import (
@@ -21,6 +20,19 @@ logger = get_logger()
 DEFAULT_LIMIT = 10
 MAX_CLAIM_LENGTH = 2000
 EMBEDDING_DIMENSIONS = 384
+
+# Lazy import of embedding service to avoid loading the model when vector search is disabled
+_embedding_service = None
+
+
+def get_embedding_service():
+    """Get embedding service instance, loading it only when needed"""
+    global _embedding_service
+    if _embedding_service is None and settings.enable_vector_search:
+        from app.services.embedding_service import embedding_service
+
+        _embedding_service = embedding_service
+    return _embedding_service
 
 
 class VectorDatabaseService:
@@ -51,6 +63,13 @@ class VectorDatabaseService:
             if len(claim) > MAX_CLAIM_LENGTH:
                 claim = claim[:MAX_CLAIM_LENGTH]
                 logger.warning(f"Claim truncated to {MAX_CLAIM_LENGTH} characters")
+
+            embedding_service = get_embedding_service()
+            if embedding_service is None:
+                logger.warning(
+                    "Vector search is disabled, skipping embedding generation."
+                )
+                return None
 
             normalized_claim = await embedding_service.normalize_text_for_embedding(
                 claim
@@ -158,6 +177,11 @@ class VectorDatabaseService:
             similarity_threshold = settings.vector_similarity_threshold
 
         try:
+            embedding_service = get_embedding_service()
+            if embedding_service is None:
+                logger.warning("Vector search is disabled, skipping similarity search.")
+                return []
+
             normalized_claim = await embedding_service.normalize_text_for_embedding(
                 claim
             )
