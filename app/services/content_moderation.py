@@ -43,9 +43,12 @@ appropriate for fact-checking.
 CLAIM: {claim}
 
 INSTRUCTIONS:
-- REJECT claims about: illegal activities, violence, explicit content, self-harm, harmful instructions, or personal attacks.
-- ALLOW claims about: conspiracy theories, misinformation, sports, history, science, health, politics, geography, entertainment, business, technology, etc.
-- Fact-checking is meant to debunk false claims, so allow controversial or false claims to be fact-checked.
+- REJECT claims about: illegal activities, violence, explicit content, self-harm,
+  harmful instructions, or personal attacks.
+- ALLOW claims about: conspiracy theories, misinformation, sports, history, science,
+  health, politics, geography, entertainment, business, technology, etc.
+- Fact-checking is meant to debunk false claims, so allow controversial or false
+  claims to be fact-checked.
 
 RESPONSE FORMAT:
 - Only respond with "true" (safe) or "false" (unsafe). No extra text.
@@ -114,7 +117,9 @@ EXAMPLES:
             return self._reject("Claim rejected by AI moderation")
         else:
             logger.warning(
-                "Unexpected AI moderation response", claim=claim[:100], response=result
+                "Unexpected AI moderation response",
+                claim=claim[:100],
+                response=result,
             )
             return self._allow(
                 f"Unexpected AI response '{result}', defaulting to allow",

@@ -125,7 +125,7 @@ def test_web_search_failure_handling(mock_llm, mock_search, mock_moderation, cli
     data = resp.json()
     assert data["verdict"] == "Unclear"
     assert data["confidence"] == 0
-    assert "Web search error" in data["reasoning"]
+    assert "Search error: Search service unavailable" in data["reasoning"]
 
 
 @pytest.mark.e2e
@@ -139,13 +139,22 @@ def test_llm_failure_handling(mock_llm, mock_search, mock_moderation, client):
         decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
     )
 
-    mock_search.return_value = TestData.create_mock_sources(1)
+    # Mock search to return a proper HybridSearchResult
+    from app.domain.models import HybridSearchResult
+
+    mock_sources = TestData.create_mock_sources(1)
+    mock_search.return_value = HybridSearchResult(
+        vector_results=[],
+        web_results=mock_sources,
+        combined_sources=mock_sources,
+        used_vector_cache=False,
+    )
     mock_llm.side_effect = Exception("LLM service unavailable")
     resp = post_factcheck(client, "Test claim")
     data = resp.json()
     assert data["verdict"] == "Unclear"
     assert data["confidence"] == 0
-    assert "AI model error" in data["reasoning"]
+    assert "AI model error: LLM service unavailable" in data["reasoning"]
 
 
 # --- Rate limiting structure testing ---
@@ -178,7 +187,15 @@ def test_tldr_extraction(mock_llm, mock_search, mock_moderation, client):
     )
 
     # Mock response with TL;DR
-    mock_search.return_value = TestData.create_mock_sources(1)
+    from app.domain.models import HybridSearchResult
+
+    mock_sources = TestData.create_mock_sources(1)
+    mock_search.return_value = HybridSearchResult(
+        vector_results=[],
+        web_results=mock_sources,
+        combined_sources=mock_sources,
+        used_vector_cache=False,
+    )
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[

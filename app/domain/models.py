@@ -48,7 +48,9 @@ class FactCheckResponse(BaseModel):
 class FactCheckRecord(BaseModel):
     id: Optional[int] = None
     claim: str = Field(..., description="The original claim")
-    claim_embedding: Optional[List[float]] = Field(None, description="Claim embedding vector")
+    claim_embedding: Optional[List[float]] = Field(
+        None, description="Claim embedding vector"
+    )
     verdict: Verdict = Field(..., description="Fact-check verdict")
     confidence: int = Field(..., ge=0, le=100, description="Confidence score")
     reasoning: str = Field(..., description="Detailed explanation")
@@ -61,7 +63,9 @@ class FactCheckRecord(BaseModel):
 class VectorSearchResult(BaseModel):
     record: FactCheckRecord
     similarity_score: float = Field(..., description="Cosine similarity score")
-    is_exact_match: bool = Field(False, description="Whether this is an exact claim match")
+    is_exact_match: bool = Field(
+        False, description="Whether this is an exact claim match"
+    )
 
 
 class HybridSearchResult(BaseModel):

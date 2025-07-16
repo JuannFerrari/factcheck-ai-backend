@@ -24,7 +24,7 @@ logger = get_logger()
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info("Starting application")
-    
+
     # Initialize database
     try:
         await init_database()
@@ -32,16 +32,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         # Continue without database if initialization fails
-    
+
     yield
-    
+
     # Close database connections
     try:
         await close_database()
         logger.info("Database connections closed")
     except Exception as e:
         logger.error(f"Error closing database connections: {e}")
-    
+
     logger.info("Shutting down application")
 
 

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from app.services.fact_checking import fact_check_chain_logic
 from tests.conftest import TestData, AssertionHelpers
 from app.services.content_moderation import ModerationDecision, ModerationResult
+from app.domain.models import HybridSearchResult
 
 
 def make_llm_response(
@@ -16,6 +17,17 @@ def make_llm_response(
         f"Reasoning: {reasoning}.{tldr_text}"
     )
     return mock
+
+
+def create_mock_hybrid_search_result(sources_count=1):
+    """Create a mock HybridSearchResult with the specified number of sources"""
+    mock_sources = TestData.create_mock_sources(sources_count)
+    return HybridSearchResult(
+        vector_results=[],
+        web_results=mock_sources,
+        combined_sources=mock_sources,
+        used_vector_cache=False,
+    )
 
 
 def assert_fact_check_result(result, verdict=None, confidence=None, sources=None):
@@ -45,7 +57,7 @@ async def test_various_verdicts(
         decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
     )
 
-    mock_search.return_value = TestData.create_mock_sources(2)
+    mock_search.return_value = create_mock_hybrid_search_result(2)
     mock_llm.return_value = make_llm_response(
         verdict, confidence, f"This is {verdict.lower()}."
     )
@@ -78,7 +90,7 @@ async def test_tldr_variations(
         decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
     )
 
-    mock_search.return_value = TestData.create_mock_sources(1)
+    mock_search.return_value = create_mock_hybrid_search_result(1)
     reasoning = "Reasoning: Example reasoning."
     content = f"Verdict: True\nConfidence: 80\n{reasoning}\n\n{tldr_input or ''}"
     mock = MagicMock()
@@ -101,7 +113,10 @@ async def test_no_sources(mock_llm, mock_search, mock_moderation):
         decision=ModerationDecision.ALLOW, confidence=0.95, reason="Claim approved"
     )
 
-    mock_search.return_value = []  # no sources
+    # Return empty HybridSearchResult
+    mock_search.return_value = HybridSearchResult(
+        vector_results=[], web_results=[], combined_sources=[], used_vector_cache=False
+    )
     result = await fact_check_chain_logic({"claim": "Test claim"})
     assert_fact_check_result(result, verdict="Unclear", confidence=0, sources=0)
     assert "No relevant sources found" in result["reasoning"]
@@ -111,7 +126,7 @@ async def test_no_sources(mock_llm, mock_search, mock_moderation):
 @patch("app.services.fact_checking.content_moderation_service.evaluate_claim")
 @patch(
     "app.services.fact_checking.hybrid_search_service.search_claim",
-    side_effect=Exception("Search fail"),
+    side_effect=Exception("Search service unavailable"),
 )
 async def test_web_search_error(mock_search, mock_moderation):
     # Mock moderation to allow the claim
@@ -121,7 +136,7 @@ async def test_web_search_error(mock_search, mock_moderation):
 
     result = await fact_check_chain_logic({"claim": "Test claim"})
     assert_fact_check_result(result, verdict="Unclear", confidence=0, sources=0)
-    assert "Web search error" in result["reasoning"]
+    assert "Search error: Search service unavailable" in result["reasoning"]
 
 
 @pytest.mark.asyncio

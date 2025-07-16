@@ -186,12 +186,13 @@ def mock_fact_check(
 ):
     # Create a HybridSearchResult object for the mock
     from app.domain.models import HybridSearchResult
+
     mock_sources = TestData.create_mock_sources(sources)
     mock_search.return_value = HybridSearchResult(
         vector_results=[],
         web_results=mock_sources,
         combined_sources=mock_sources,
-        used_vector_cache=False
+        used_vector_cache=False,
     )
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.services.vector_database import vector_database_service
@@ -24,19 +23,16 @@ def verify_api_key(request: Request):
 
 @router.get("/statistics")
 @limiter.limit("30/minute;5/second")
-async def get_statistics(
-    request: Request, 
-    _=Depends(verify_api_key)
-):
+async def get_statistics(request: Request, _=Depends(verify_api_key)):
     """Get vector database and search statistics"""
     try:
         async with AsyncSessionLocal() as session:
             # Get vector database statistics
             vector_stats = await vector_database_service.get_statistics(session)
-            
+
             # Get search statistics
             search_stats = await hybrid_search_service.get_search_statistics(session)
-            
+
             return {
                 "vector_database": vector_stats,
                 "search": search_stats,
@@ -44,43 +40,46 @@ async def get_statistics(
                     "vector_similarity_threshold": settings.vector_similarity_threshold,
                     "max_vector_results": settings.max_vector_results,
                     "enable_vector_search": settings.enable_vector_search,
-                    "enable_vector_storage": settings.enable_vector_storage
-                }
+                    "enable_vector_storage": settings.enable_vector_storage,
+                },
             }
-        
+
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": "Failed to retrieve statistics", "detail": str(e)}
+            content={"error": "Failed to retrieve statistics", "detail": str(e)},
         )
 
 
 @router.get("/recent")
 @limiter.limit("30/minute;5/second")
 async def get_recent_fact_checks(
-    request: Request,
-    limit: int = 10,
-    _=Depends(verify_api_key)
+    request: Request, limit: int = 10, _=Depends(verify_api_key)
 ):
     """Get recent fact-check records"""
     try:
         if limit > 50:
             limit = 50  # Cap at 50 records
-        
+
         async with AsyncSessionLocal() as session:
-            records = await vector_database_service.get_recent_fact_checks(session, limit)
-            
+            records = await vector_database_service.get_recent_fact_checks(
+                session, limit
+            )
+
             return {
                 "records": [record.model_dump() for record in records],
-                "count": len(records)
+                "count": len(records),
             }
-        
+
     except Exception as e:
         logger.error(f"Error getting recent fact checks: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": "Failed to retrieve recent fact checks", "detail": str(e)}
+            content={
+                "error": "Failed to retrieve recent fact checks",
+                "detail": str(e),
+            },
         )
 
 
@@ -91,69 +90,69 @@ async def search_similar_claims(
     claim: str,
     max_results: int = 5,
     similarity_threshold: float = 0.85,
-    _=Depends(verify_api_key)
+    _=Depends(verify_api_key),
 ):
     """Search for similar claims in the vector database"""
     try:
         if not claim.strip():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Claim parameter is required"
+                detail="Claim parameter is required",
             )
-        
+
         if max_results > 20:
             max_results = 20  # Cap at 20 results
-        
+
         if similarity_threshold < 0.0 or similarity_threshold > 1.0:
             similarity_threshold = 0.85
-        
+
         async with AsyncSessionLocal() as session:
             results = await vector_database_service.find_similar_claims(
                 session, claim, max_results, similarity_threshold
             )
-            
+
             return {
                 "query": claim,
                 "results": [result.model_dump() for result in results],
                 "count": len(results),
-                "similarity_threshold": similarity_threshold
+                "similarity_threshold": similarity_threshold,
             }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error searching similar claims: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": "Failed to search similar claims", "detail": str(e)}
+            content={"error": "Failed to search similar claims", "detail": str(e)},
         )
 
 
 @router.get("/record/{record_id}")
 @limiter.limit("30/minute;5/second")
 async def get_fact_check_record(
-    request: Request,
-    record_id: int,
-    _=Depends(verify_api_key)
+    request: Request, record_id: int, _=Depends(verify_api_key)
 ):
     """Get a specific fact-check record by ID"""
     try:
         async with AsyncSessionLocal() as session:
-            record = await vector_database_service.get_fact_check_by_id(session, record_id)
-            
+            record = await vector_database_service.get_fact_check_by_id(
+                session, record_id
+            )
+
             if not record:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Fact-check record not found"
+                    detail="Fact-check record not found",
                 )
-            
+
             return record.model_dump()
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting fact check record: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": "Failed to retrieve fact check record", "detail": str(e)}
-        ) 
+            content={"error": "Failed to retrieve fact check record", "detail": str(e)},
+        )
