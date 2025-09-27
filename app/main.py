@@ -98,7 +98,7 @@ async def add_rate_limit_headers(request: Request, call_next):
 
 app.include_router(fact_check.router, prefix="/api/v1", tags=["fact-checking"])
 app.include_router(vector_db.router, prefix="/api/v1/vector", tags=["vector-database"])
-app.add_api_route("/", health_root, methods=["GET"])
+app.add_api_route("/", health_root, methods=["GET", "HEAD"])
 
 
 @app.exception_handler(Exception)

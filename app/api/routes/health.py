@@ -6,6 +6,7 @@ router = APIRouter()
 
 
 @router.get("/")
+@router.head("/")
 async def root():
     """Basic health check endpoint"""
     return {
